@@ -1,3 +1,4 @@
+from __future__ import annotations
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -128,7 +129,7 @@ def dimensions_compatibles(a: str, b: str) -> bool:
     # Au moins une dimension commune (ou aucune contradiction)
     return bool(dims_a & dims_b) or not (dims_a - dims_b) or not (dims_b - dims_a)
 
-def score_match(a: str, b: str) -> tuple[float, bool]:
+def score_match(a: str, b: str) :
     """
     Retourne (score, dimensions_ok).
     Le score seul ne suffit pas : on vérifie aussi la compatibilité des dimensions.
