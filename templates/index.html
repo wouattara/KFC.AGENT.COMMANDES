@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KFC — Agent IA Commandes</title>
+<style>
+  :root {
+    --red: #E4002B;
+    --red-dark: #B5001F;
+    --red-light: #FFF0F2;
+    --black: #1A1A1A;
+    --gray: #F5F5F5;
+    --border: #E8E8E8;
+    --success: #1B7A3E;
+    --success-bg: #EAF7EE;
+    --warning: #C75000;
+    --warning-bg: #FFF4EC;
+    --danger: #C0221F;
+    --danger-bg: #FFEBEA;
+    --info: #1155CC;
+    --info-bg: #EAF0FF;
+    --muted: #666;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #EFEFEF; color: var(--black); min-height: 100vh; }
+
+  header {
+    background: var(--red);
+    color: white;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    padding: 0 1.5rem;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,.25);
+  }
+  .logo { font-size: 20px; font-weight: 800; display: flex; align-items: center; gap: 10px; }
+  .logo-badge { background: white; color: var(--red); font-size: 13px; font-weight: 800; padding: 2px 8px; border-radius: 4px; letter-spacing: .5px; }
+  header small { margin-left: auto; opacity: .85; font-size: 12px; }
+
+  main { max-width: 960px; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+
+  /* Upload zone */
+  .upload-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+  @media(max-width:600px){ .upload-row { grid-template-columns: 1fr; } }
+
+  .drop-zone {
+    background: white;
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 1.75rem 1.25rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+    position: relative;
+  }
+  .drop-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .drop-zone:hover, .drop-zone.drag { border-color: var(--red); background: var(--red-light); }
+  .drop-zone.done { border-style: solid; border-color: var(--success); background: var(--success-bg); }
+  .drop-zone .icon { font-size: 2rem; margin-bottom: .5rem; }
+  .drop-zone h3 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .drop-zone p { font-size: 12px; color: var(--muted); }
+  .file-name { display: none; margin-top: .6rem; font-size: 12px; font-weight: 600; color: var(--success); word-break: break-all; }
+  .drop-zone.done .file-name { display: block; }
+  .drop-zone.done p { display: none; }
+
+  /* Bouton analyse */
+  #btn-analyze {
+    width: 100%;
+    padding: .9rem;
+    background: var(--red);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: .3px;
+    transition: background .2s, transform .1s;
+    margin-bottom: 1.25rem;
+  }
+  #btn-analyze:hover:not(:disabled) { background: var(--red-dark); transform: translateY(-1px); }
+  #btn-analyze:disabled { background: #CCC; cursor: not-allowed; transform: none; }
+
+  /* Spinner */
+  #loading { display: none; text-align: center; padding: 3rem 1rem; background: white; border-radius: 12px; margin-bottom: 1rem; }
+  .spinner { width: 44px; height: 44px; border: 4px solid #EEE; border-top-color: var(--red); border-radius: 50%; animation: spin .75s linear infinite; margin: 0 auto .75rem; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #loading p { font-size: 14px; font-weight: 600; color: var(--black); }
+  #loading small { color: var(--muted); font-size: 12px; }
+
+  /* Error */
+  #error-box { display: none; background: var(--danger-bg); border: 1px solid #F5AAAA; border-radius: 10px; padding: 1rem 1.25rem; color: var(--danger); font-size: 13px; margin-bottom: 1rem; }
+
+  /* Results */
+  #results { display: none; }
+
+  /* Stats */
+  .stats-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: .75rem; margin-bottom: 1rem; }
+  @media(max-width:500px){ .stats-grid { grid-template-columns: repeat(2,1fr); } }
+  .stat { background: white; border-radius: 10px; padding: 1rem .75rem; text-align: center; border: 1px solid var(--border); }
+  .stat .n { font-size: 28px; font-weight: 800; line-height: 1; margin-bottom: 4px; }
+  .stat .l { font-size: 11px; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: .4px; }
+  .stat.red .n { color: var(--red); }
+  .stat.green .n { color: var(--success); }
+  .stat.orange .n { color: var(--warning); }
+  .stat.danger .n { color: var(--danger); }
+
+  /* Panel */
+  .panel { background: white; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 1rem; overflow: hidden; }
+  .panel-hd { padding: .9rem 1.25rem; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .panel-hd .count { margin-left: auto; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+  .count-red { background: var(--danger-bg); color: var(--danger); }
+  .count-green { background: var(--success-bg); color: var(--success); }
+  .count-orange { background: var(--warning-bg); color: var(--warning); }
+
+  /* Table */
+  .tbl-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 480px; }
+  th { background: #F8F8F8; padding: 8px 12px; text-align: left; font-weight: 600; color: #555; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; border-bottom: 1px solid var(--border); }
+  td { padding: 9px 12px; border-bottom: 1px solid #F4F4F4; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #FAFAFA; }
+
+  /* Pills */
+  .pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .pill-ok { background: var(--success-bg); color: var(--success); }
+  .pill-missing { background: var(--danger-bg); color: var(--danger); }
+  .pill-excess { background: var(--warning-bg); color: var(--warning); }
+  .pill-info { background: var(--info-bg); color: var(--info); }
+  .pill-gray { background: #F0F0F0; color: #777; }
+
+  .ecart-pos { color: var(--warning); font-weight: 700; }
+  .ecart-neg { color: var(--danger); font-weight: 700; }
+  .ecart-ok { color: var(--success); font-weight: 700; }
+
+  /* Synthèse IA */
+  .synthese { padding: 1.25rem; font-size: 13px; line-height: 1.75; white-space: pre-wrap; color: var(--black); }
+  .synthese h3 { font-size: 13px; font-weight: 700; color: var(--red); margin: .9rem 0 .3rem; }
+  .synthese h3:first-child { margin-top: 0; }
+
+  /* Export */
+  .btn-export { display: inline-flex; align-items: center; gap: 6px; margin: .75rem 1.25rem 1.25rem; padding: .5rem 1rem; background: var(--black); color: white; border: none; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: background .2s; }
+  .btn-export:hover { background: #333; }
+
+  /* Reset */
+  .btn-reset { display: block; width: 100%; margin-top: .5rem; padding: .65rem; background: transparent; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; color: var(--muted); cursor: pointer; }
+  .btn-reset:hover { background: var(--gray); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <span class="logo-badge">KFC</span>
+    Agent IA — Vérification Commandes
+  </div>
+  <small>Groupe franchisé · 6 restaurants</small>
+</header>
+
+<main>
+
+  <div class="upload-row">
+    <div class="drop-zone" id="zone-cmd">
+      <input type="file" id="file-cmd" accept=".xlsx,.xls,.csv">
+      <div class="icon">📋</div>
+      <h3>Fichier de commande</h3>
+      <p>Excel (.xlsx, .xls) ou CSV</p>
+      <div class="file-name" id="fname-cmd"></div>
+    </div>
+    <div class="drop-zone" id="zone-bon">
+      <input type="file" id="file-bon" accept=".pdf,.csv,.xlsx,.xls">
+      <div class="icon">📄</div>
+      <h3>Bon de validation</h3>
+      <p>PDF ou CSV (F4R, Metro…)</p>
+      <div class="file-name" id="fname-bon"></div>
+    </div>
+  </div>
+
+  <button id="btn-analyze" disabled onclick="analyze()">⚡ Analyser avec l'IA</button>
+
+  <div id="error-box"></div>
+  <div id="loading">
+    <div class="spinner"></div>
+    <p>Analyse en cours…</p>
+    <small>Lettrage et détection d'incohérences</small>
+  </div>
+
+  <div id="results">
+
+    <div class="stats-grid">
+      <div class="stat red"><div class="n" id="s-total">—</div><div class="l">Commandés</div></div>
+      <div class="stat green"><div class="n" id="s-ok">—</div><div class="l">Lettrés ✓</div></div>
+      <div class="stat danger"><div class="n" id="s-missing">—</div><div class="l">Manquants</div></div>
+      <div class="stat orange"><div class="n" id="s-diff">—</div><div class="l">Écarts qté</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-hd">
+        📊 Lettrage complet
+        <span class="count count-red" id="c-issues">0 problème(s)</span>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Produit commande</th>
+              <th>Produit bon</th>
+              <th>Commandé</th>
+              <th>Reçu</th>
+              <th>Écart</th>
+              <th>Statut</th>
+            </tr>
+          </thead>
+          <tbody id="tbl-lettrage"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-issues">
+      <div class="panel-hd">
+        ⚠️ Incohérences
+        <span class="count count-red" id="c-inc">0</span>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>Type</th><th>Produit</th><th>Détail</th></tr>
+          </thead>
+          <tbody id="tbl-issues"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-hd">🤖 Synthèse IA</div>
+      <div class="synthese" id="synthese">Chargement…</div>
+      <button class="btn-export" onclick="exportCSV()">⬇ Exporter CSV</button>
+    </div>
+
+    <button class="btn-reset" onclick="reset()">↩ Nouvelle analyse</button>
+  </div>
+
+</main>
+
+<script>
+let cmdFile = null, bonFile = null, lastResult = null;
+
+function setupZone(zoneId, inputId, fnameId, target) {
+  const zone = document.getElementById(zoneId);
+  const input = document.getElementById(inputId);
+
+  input.addEventListener('change', e => {
+    if (e.target.files[0]) setFile(e.target.files[0], zone, fnameId, target);
+  });
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag');
+    if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0], zone, fnameId, target);
+  });
+}
+
+function setFile(file, zone, fnameId, target) {
+  if (target === 'cmd') cmdFile = file;
+  else bonFile = file;
+  zone.classList.add('done');
+  const name = file.name;
+  document.getElementById(fnameId).textContent = name.length > 30 ? name.slice(0,28)+'…' : name;
+  checkReady();
+}
+
+function checkReady() {
+  document.getElementById('btn-analyze').disabled = !(cmdFile && bonFile);
+}
+
+setupZone('zone-cmd', 'file-cmd', 'fname-cmd', 'cmd');
+setupZone('zone-bon', 'file-bon', 'fname-bon', 'bon');
+
+async function analyze() {
+  document.getElementById('error-box').style.display = 'none';
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('btn-analyze').disabled = true;
+
+  const form = new FormData();
+  form.append('commande', cmdFile);
+  form.append('bon', bonFile);
+
+  try {
+    const resp = await fetch('/analyze', { method: 'POST', body: form });
+    const data = await resp.json();
+
+    if (!resp.ok) throw new Error(data.detail || 'Erreur serveur');
+
+    lastResult = data;
+    render(data);
+  } catch(err) {
+    showError(err.message);
+  } finally {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('btn-analyze').disabled = false;
+  }
+}
+
+function pill(statut) {
+  const map = {
+    OK:           ['pill-ok',      '✓ OK'],
+    ECART_QTE:    ['pill-info',    '≠ Écart'],
+    MANQUANT:     ['pill-missing', '✗ Manquant'],
+    NON_COMMANDE: ['pill-excess',  '+ Non commandé'],
+    NON_PASSE:    ['pill-gray',    '— Non passé'],
+  };
+  const [cls, lbl] = map[statut] || ['pill-gray', statut];
+  return `<span class="pill ${cls}">${lbl}</span>`;
+}
+
+function ecartHtml(e) {
+  if (e === null || e === undefined) return '—';
+  if (e === 0) return '<span class="ecart-ok">0</span>';
+  return `<span class="${e > 0 ? 'ecart-pos' : 'ecart-neg'}">${e > 0 ? '+' : ''}${e}</span>`;
+}
+
+function render(data) {
+  const s = data.stats;
+  document.getElementById('s-total').textContent = s.total_commande;
+  document.getElementById('s-ok').textContent = s.ok;
+  document.getElementById('s-missing').textContent = s.manquant;
+  document.getElementById('s-diff').textContent = s.ecart_qte;
+
+  const issues_count = s.manquant + s.ecart_qte + s.non_commande;
+  document.getElementById('c-issues').textContent = issues_count + ' problème(s)';
+  document.getElementById('c-inc').textContent = issues_count;
+
+  // Lettrage table
+  const tbody = document.getElementById('tbl-lettrage');
+  tbody.innerHTML = '';
+  data.lettrage.forEach((l, i) => {
+    tbody.innerHTML += `<tr>
+      <td style="color:#AAA;font-size:11px">${i+1}</td>
+      <td style="font-weight:500;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${l.produit_commande||''}">${l.produit_commande || '<em style="color:#AAA">—</em>'}</td>
+      <td style="color:var(--muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${l.produit_bon||''}">${l.produit_bon || '<em style="color:#AAA">—</em>'}</td>
+      <td>${l.qte_commandee ?? '—'}</td>
+      <td>${l.qte_recue ?? '—'}</td>
+      <td>${ecartHtml(l.ecart)}</td>
+      <td>${pill(l.statut)}</td>
+    </tr>`;
+  });
+
+  // Issues table
+  const itbody = document.getElementById('tbl-issues');
+  itbody.innerHTML = '';
+  const issues = data.lettrage.filter(l => !['OK','NON_PASSE'].includes(l.statut));
+  if (issues.length === 0) {
+    itbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--success);padding:1.25rem;font-weight:600">✓ Aucune incohérence</td></tr>';
+  } else {
+    issues.forEach(l => {
+      const typeLabel = {
+        MANQUANT: ['pill-missing','Manquant'],
+        ECART_QTE: ['pill-info','Écart qté'],
+        NON_COMMANDE: ['pill-excess','Non commandé'],
+      }[l.statut] || ['pill-gray', l.statut];
+      const produit = l.produit_commande || l.produit_bon || '—';
+      let detail = '';
+      if (l.statut === 'MANQUANT') detail = `Commandé ${l.qte_commandee}, absent du bon`;
+      else if (l.statut === 'ECART_QTE') detail = `Commandé ${l.qte_commandee}, reçu ${l.qte_recue} (${l.ecart > 0 ? '+' : ''}${l.ecart})`;
+      else if (l.statut === 'NON_COMMANDE') detail = `Présent sur le bon (${l.qte_recue} u.), non commandé`;
+      itbody.innerHTML += `<tr>
+        <td><span class="pill ${typeLabel[0]}">${typeLabel[1]}</span></td>
+        <td style="font-weight:500">${produit}</td>
+        <td style="color:var(--muted)">${detail}</td>
+      </tr>`;
+    });
+  }
+
+  // Synthèse IA
+  const syn = document.getElementById('synthese');
+  const txt = (data.synthese || '').replace(/### (.+)/g, '<h3>$1</h3>').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  syn.innerHTML = txt;
+
+  document.getElementById('results').style.display = 'block';
+  document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function showError(msg) {
+  const el = document.getElementById('error-box');
+  el.textContent = '⚠️ ' + msg;
+  el.style.display = 'block';
+}
+
+function reset() {
+  cmdFile = null; bonFile = null; lastResult = null;
+  ['zone-cmd','zone-bon'].forEach(id => document.getElementById(id).classList.remove('done'));
+  document.getElementById('btn-analyze').disabled = true;
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('error-box').style.display = 'none';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function exportCSV() {
+  if (!lastResult) return;
+  const rows = [['Produit commande','Produit bon','Qté commandée','Qté reçue','Écart','Statut']];
+  lastResult.lettrage.forEach(l => {
+    rows.push([l.produit_commande||'', l.produit_bon||'', l.qte_commandee??'', l.qte_recue??'', l.ecart??'', l.statut]);
+  });
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(';')).join('\n');
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `kfc_rapport_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+</script>
+</body>
+</html>
