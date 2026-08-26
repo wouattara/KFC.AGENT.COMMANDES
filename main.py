@@ -49,9 +49,57 @@ def parse_csv_bon(content: bytes):
     return produits, "\n".join(lines)
 
 def parse_pdf_bon(content: bytes):
+    """
+    Parseur PDF pour bon de confirmation STEF (et formats similaires).
+    Format attendu : Ligne | Article | Désignation | Temp. | Unité | Qté cdée | Qté Conf | Rupt
+    """
+    # Pattern ligne produit : numéro ligne, éventuellement X, code article 6 chiffres,
+    # désignation, température, COL, qté commandée, qté confirmée, rupture
+    pattern = re.compile(
+        r'^(\d+)\s+(?:X\s+)?(\d{5,6})\s+(.+?)\s+(SEC|SURG|FRAIS)\s+COL\s+(\d+)\s+(\d+)\s+\d+\s*$'
+    )
+
     with pdfplumber.open(io.BytesIO(content)) as pdf:
-        text = "\n".join(page.extract_text() or "" for page in pdf.pages[:15])
-    return [], text
+        full_text = "\n".join(page.extract_text() or "" for page in pdf.pages)
+
+    # Reconstituer les lignes fragmentées (désignation sur 2 lignes)
+    raw_lines = full_text.split('\n')
+    merged = []
+    i = 0
+    while i < len(raw_lines):
+        line = raw_lines[i].strip()
+        if line and i + 1 < len(raw_lines):
+            nxt = raw_lines[i + 1].strip()
+            # Si la ligne suivante est une suite de désignation (pas un n° de ligne ni en-tête)
+            if nxt and not re.match(r'^\d{2,3}\s', nxt) and not re.match(
+                r'^(Page|Ligne|Totaux|CONFIRMATION|Notre|Pour|STEF|KFC|Code|Commandé|Livré)', nxt
+            ):
+                line = line + ' ' + nxt
+                i += 1
+        merged.append(line)
+        i += 1
+
+    produits = []
+    raw_lines_out = []
+    seen_articles = set()
+
+    for line in merged:
+        m = pattern.match(line)
+        if m:
+            article = m.group(2)
+            designation = m.group(3).strip()
+            qte_conf = int(m.group(6))
+            # Dédupliquer par code article (les lignes "X" sont des anciens tarifs)
+            if article not in seen_articles:
+                seen_articles.add(article)
+                produits.append({"nom": designation, "qte": qte_conf, "article": article})
+                raw_lines_out.append(f"{designation} | {qte_conf}")
+
+    # Fallback texte brut si aucun produit parsé (PDF image ou format inconnu)
+    if not produits:
+        return [], full_text
+
+    return produits, "\n".join(raw_lines_out)
 
 def parse_excel_bon(content: bytes):
     wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
@@ -312,3 +360,7 @@ async def analyze(commande: UploadFile = File(...), bon: UploadFile = File(...))
 @app.get("/health")
 async def health():
     return {"status":"ok","api_key_set":bool(ANTHROPIC_API_KEY)}
+
+@app.get("/version")
+async def version():
+    return {"version": "2.1-pdf-stef", "pdf_parser": "stef_pattern_v2"}
